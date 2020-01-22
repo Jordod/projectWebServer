@@ -6,15 +6,23 @@ const options = {
   cert: fs.readFileSync('cert.pem')
 };
 
-const example = {
-  currFrom: 'USD',
-  currTo: 'bitcoin',
-  amount: '100',
-  rate: '1000' //1000 US to 1 btc
-}
-
 https.createServer(options, function (req, res) {
-  res.writeHead(200, {'Content-Type': 'application/json'});
-  res.write(JSON.stringify(example)); //Will Return Empty Obj if trade fails
-  res.end();
+  var chunks = [];
+
+  req.on("data", (chunk) => {
+    chunks.push(chunk);
+  });
+
+  req.on("error", (error) => {
+    /* istanbul ignore next */ throw error;
+  });
+
+  req.on("end", () => {
+    var data = Buffer.concat(chunks);
+    data = JSON.parse(data);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.write(JSON.stringify(data)); //Will Return Empty Obj if trade fails
+    res.end();
+  });
 }).listen(8000);
