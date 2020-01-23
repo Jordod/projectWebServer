@@ -1,5 +1,2 @@
 node_modules
-dist
-prefs
 package-lock.json
-.nyc_output
