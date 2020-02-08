@@ -15,11 +15,11 @@ admin.initializeApp({
 
 const store = admin.firestore();
 
-store.collection("transactions").listDocuments().then(
-  x => x[0].get().then(y => {
-    console.log(y.data());
-  })
-);
+// store.collection("transactions").listDocuments().then(
+//   x => x[0].get().then(y => {
+//     console.log(y.data());
+//   })
+// );
 
 https.createServer(options, function (req, res) {
   var chunks = [];
