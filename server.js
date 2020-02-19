@@ -15,12 +15,6 @@ admin.initializeApp({
 
 const store = admin.firestore();
 
-// store.collection("transactions").listDocuments().then(
-//   x => x[0].get().then(y => {
-//     console.log(y.data());
-//   })
-// );
-
 https.createServer(options, function (req, res) {
   var chunks = [];
 
@@ -34,10 +28,43 @@ https.createServer(options, function (req, res) {
 
   req.on("end", () => {
     var data = Buffer.concat(chunks);
-    data = JSON.parse(data);
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.write(JSON.stringify(data)); //Will Return Empty Obj if trade fails
-    res.end();
+    if (data)
+      module.exports.handlePost(req.url, req, res, data);
+    else
+      module.exports.handleGet(req.url, res);
   });
 }).listen(8000);
+
+module.exports = {
+  handlePost: (url, req, res, data) => {
+    //TODO: Write to firebase logic
+  },
+
+  handleGet: (url, res) => {
+    if (url == "/favicon.ico" || url == "/") return;
+    let split = url.split('/');
+    let coll = split[1];
+    let id = split[2];
+    let query;
+
+    switch (coll) {
+      case "balance":
+      case "transactions":
+        query = store.collection(coll).where('id', '==', id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        query.get().then(snap => {
+          snap.forEach(doc => {
+            res.end(JSON.stringify(doc.data()));
+          });
+        });
+        break;
+      case "rates":
+        //coincap api calls
+        break;
+      default:
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.write("Not Found");
+        break;
+    }
+  }
+}
