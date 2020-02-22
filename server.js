@@ -30,7 +30,7 @@ https.createServer(options, function (req, res) {
   req.on("end", () => {
     var data = Buffer.concat(chunks);
     if (data.length > 0)
-      module.exports.handlePost(req.url, req, res, data);
+      module.exports.handleTrade(res, data);
     else
       module.exports.handleGet(req.url, res);
   });
@@ -61,7 +61,7 @@ module.exports = {
 
       res.on("end", function (chunk) {
         var body = Buffer.concat(chunks);
-        callback(JSON.parse(body));
+        callback(JSON.parse(body).data);
       });
 
       res.on("error", function (error) {
@@ -71,26 +71,59 @@ module.exports = {
     req.end();
   },
 
-  handlePost: (url, req, res, data) => {
-    let id = url.split('/')[1];
+  verifyData: (data) => {
+    if (data.id == undefined) return false;
+    if (data.amount <= 0 || data.amount == undefined) return false;
+    if (data.buy == undefined) return false;
+    switch (data.buy) {
+      case "ripple":
+      case "bitcoin":
+      case "litecoin":
+        return true;
+      default:
+        return false;
+    }
+  },
+
+  updateBalance: (ref, doc, usdAmt) => {
+    let bal = ref.data();
+    bal.cryptoBals[doc.buy] += doc.amount;
+    bal.amtUSD -= usdAmt;
+    ref.ref.update(bal); //QueryDocRef -> DocRef update()
+  },
+
+  writeTransaction: (doc) => {
+    doc.date = Date.now();
+    store.collection("transactions").add(doc);
+  },
+
+  handleTrade: async (res, data) => {
     try {
       data = JSON.parse(data);
+      if (!module.exports.verifyData(data)) throw new Exception();
     } catch (e) {
       res.writeHead(400);
       res.end("Bad Request");
       return;
     }
-    let date = {
-      "_seconds": Date.now(),
-      "_nanoseconds": 0
-    }
-    module.exports.getRates("bitcoin");
 
-    res.end(JSON.stringify(id));
+    let balanceRef = await module.exports.getBalance(data.id);
+    let balance = balanceRef.data();
+
+    //here's the trade calls
+    module.exports.getRates(data.buy, (rate) => {
+      let amtToBuyUSD = data.amount * rate.rateUsd;
+      if (balance.amtUSD - amtToBuyUSD < 0) {
+        res.end(JSON.stringify("Insuffuicent balance"));
+      } else {
+        module.exports.updateBalance(balanceRef, data, amtToBuyUSD)
+        module.exports.writeTransaction(data);
+        res.end(JSON.stringify("Success"));
+      }
+    });
   },
 
   handleGet: (url, res) => {
-    if (url == "/favicon.ico" || url == "/") return;
     let split = url.split('/');
     let coll = split[1];
     let id = split[2];
@@ -99,12 +132,7 @@ module.exports = {
     switch (coll) {
       case "balance":
         query = store.collection(coll).where('id', '==', id);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        query.get().then(snap => {
-          snap.forEach(doc => {
-            res.end(JSON.stringify(doc.data()));
-          });
-        });
+        module.exports.completeQueryReq(res, query);
       case "transactions":
         let transactions = [];
         query = store.collection(coll).where('id', '==', id);
@@ -119,11 +147,24 @@ module.exports = {
       case "rates":
         //coincap api calls
         break;
+      case "default":
+        query = store.collection('balance').where('id', '==', '0');//default id
+        module.exports.completeQueryReq(res, query);
+        break;
       default:
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.write("Not Found");
         res.end();
         break;
     }
+  },
+
+  completeQueryReq: (res, query) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    query.get().then(snap => {
+      snap.forEach(doc => {
+        res.end(JSON.stringify(doc.data()));
+      });
+    });
   }
 }
