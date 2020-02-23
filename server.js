@@ -79,6 +79,7 @@ module.exports = {
       case "ripple":
       case "bitcoin":
       case "litecoin":
+      case "usd":
         return true;
       default:
         return false;
@@ -87,8 +88,12 @@ module.exports = {
 
   updateBalance: (ref, doc, usdAmt) => {
     let bal = ref.data();
-    bal.cryptoBals[doc.buy] += doc.amount;
-    bal.amtUSD -= usdAmt;
+    if (doc.buy == 'usd') {
+      bal.amtUSD += usdAmt;
+    } else {
+      bal.cryptoBals[doc.buy] += doc.amount;
+      bal.amtUSD -= usdAmt;
+    }
     ref.ref.update(bal); //QueryDocRef -> DocRef update()
   },
 
@@ -112,16 +117,22 @@ module.exports = {
     let balance = balanceRef.data();
 
     //here's the trade calls
-    module.exports.getRates(data.buy, (rate) => {
-      let amtToBuyUSD = data.amount * rate.rateUsd;
-      if (balance.amtUSD - amtToBuyUSD < 0) {
-        res.end(JSON.stringify("Insuffuicent balance"));
-      } else {
-        module.exports.updateBalance(balanceRef, data, amtToBuyUSD)
-        module.exports.writeTransaction(data);
-        res.end(JSON.stringify("Success"));
-      }
-    });
+    if (data.buy == 'usd') { //topup first
+      module.exports.updateBalance(balanceRef, data, data.amount);
+      module.exports.writeTransaction(data);
+      res.end(JSON.stringify("Success"));
+    } else {
+      module.exports.getRates(data.buy, (rate) => {
+        let amtToBuyUSD = data.amount * rate.rateUsd;
+        if (balance.amtUSD - amtToBuyUSD < 0) {
+          res.end(JSON.stringify("Insuffuicent balance"));
+        } else {
+          module.exports.updateBalance(balanceRef, data, data.amount)
+          module.exports.writeTransaction(data);
+          res.end(JSON.stringify("Success"));
+        }
+      });
+    }
   },
 
   handleGet: (url, res) => {
