@@ -108,6 +108,7 @@ module.exports = {
     }
 
     let balanceRef = await module.exports.getBalance(data.id);
+    if (balanceRef == undefined) { res.end(JSON.stringify("No Account")); return; };
     let balance = balanceRef.data();
 
     //here's the trade calls
@@ -133,6 +134,7 @@ module.exports = {
       case "balance":
         query = store.collection(coll).where('id', '==', id);
         module.exports.completeQueryReq(res, query);
+        break;
       case "transactions":
         let transactions = [];
         query = store.collection(coll).where('id', '==', id);
@@ -144,8 +146,15 @@ module.exports = {
           res.end(JSON.stringify(transactions));
         });
         break;
-      case "rates":
-        //coincap api calls
+      case "create":
+        query = store.collection("balance").where('id', '==', '0');
+        query.get().then(snap => {
+          let doc = snap.docs[0].data();
+          doc.id = id;
+          store.collection('balance').add(doc);
+        });
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end("Done");
         break;
       case "default":
         query = store.collection('balance').where('id', '==', '0');//default id
@@ -160,11 +169,15 @@ module.exports = {
   },
 
   completeQueryReq: (res, query) => {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
     query.get().then(snap => {
-      snap.forEach(doc => {
-        res.end(JSON.stringify(doc.data()));
-      });
+      if (snap.empty) {
+        module.exports.completeQueryReq(res, store.collection('balance').where('id', '==', '0'));
+      } else {
+        snap.forEach(doc => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(doc.data()));
+        });
+      }
     });
   }
 }
