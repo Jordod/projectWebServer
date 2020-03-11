@@ -30,7 +30,10 @@ https.createServer(options, function (req, res) {
   req.on("end", () => {
     var data = Buffer.concat(chunks);
     if (data.length > 0)
+    {
+      console.log(JSON.parse(data));
       module.exports.handleTrade(res, data);
+    }
     else
       module.exports.handleGet(req.url, res);
   });
@@ -76,7 +79,6 @@ module.exports = {
     if (data.amount <= 0 || data.amount == undefined) return false;
     if (data.buy == undefined) return false;
     switch (data.buy) {
-      case "ripple":
       case "bitcoin":
       case "litecoin":
       case "usd":
@@ -156,16 +158,6 @@ module.exports = {
           });
           res.end(JSON.stringify(transactions));
         });
-        break;
-      case "create":
-        query = store.collection("balance").where('id', '==', '0');
-        query.get().then(snap => {
-          let doc = snap.docs[0].data();
-          doc.id = id;
-          store.collection('balance').add(doc);
-        });
-        res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end("Done");
         break;
       case "default":
         query = store.collection('balance').where('id', '==', '0');//default id
