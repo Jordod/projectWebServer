@@ -13,7 +13,21 @@ module.exports = {
     getBalance: async (id) => {
         let query = store.collection('balance').where('id', '==', id);
         let data = await query.get();
-        return data.docs[0];
+
+        if(data.docs.length == 0) {
+            query = store.collection('balance').where('id', '==', "0");
+            data = await query.get();
+            data = data.docs[0]
+            console.log(data);
+            data = data.data();
+            data.id = id;
+            await store.collection('balance').add(data);
+            query = store.collection('balance').where('id', '==', id);
+            data = await query.get();
+            return data.docs[0];
+        } else {
+            return data.docs[0];
+        }
     },
 
     getRates: (curr, callback) => {
@@ -106,7 +120,7 @@ module.exports = {
         switch (coll) {
             case "balance":
                 query = store.collection(coll).where('id', '==', id);
-                module.exports.completeQueryReq(res, query);
+                module.exports.completeQueryReq(res, query, id);
                 break;
             case "transactions":
                 let transactions = [];
@@ -121,7 +135,7 @@ module.exports = {
                 break;
             case "default":
                 query = store.collection('balance').where('id', '==', '0');//default id
-                module.exports.completeQueryReq(res, query);
+                module.exports.completeQueryReq(res, query, 0);
                 break;
             default:
                 res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -131,14 +145,16 @@ module.exports = {
         }
     },
 
-    completeQueryReq: (res, query) => {
+    completeQueryReq: (res, query, id) => {
         query.get().then(snap => {
             if (snap.empty) {
-                module.exports.completeQueryReq(res, store.collection('balance').where('id', '==', '0'));
+                module.exports.completeQueryReq(res, store.collection('balance').where('id', '==', '0'), id);
             } else {
                 snap.forEach(doc => {
+                    let data = doc.data();
+                    data.id = id;
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify(doc.data()));
+                    res.end(JSON.stringify(data));
                 });
             }
         });
